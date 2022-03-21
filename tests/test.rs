@@ -9,6 +9,8 @@ use std::collections::HashSet;
 #[macro_use]
 extern crate lazy_static;
 
+const READ_BUF_LEN: usize = 4096;
+
 lazy_static! {
     static ref HASHSET: HashSet<&'static str> = {
         let mut m = HashSet::new();
@@ -23,7 +25,7 @@ lazy_static! {
 #[tokio::test]
 async fn smoke() -> Result<()> {
     let mut tcp_stream = tokio::net::TcpStream::connect("0.0.0.0:5555").await?;
-    let mut read = [0; 4096];
+    let mut read = [0; READ_BUF_LEN];
     tcp_stream.write(&REQUEST_LINE.as_bytes()).await?;
     let mut len = tcp_stream.read(&mut read).await?;
     let resource = str::from_utf8(&read[..len])?;
@@ -45,7 +47,7 @@ async fn smoke() -> Result<()> {
 #[tokio::test]
 async fn wrong_stamp() -> Result<()> {
     let mut tcp_stream = tokio::net::TcpStream::connect("0.0.0.0:5555").await?;
-    let mut read = [0; 4096];
+    let mut read = [0; READ_BUF_LEN];
     tcp_stream.write(&REQUEST_LINE.as_bytes()).await?;
     let mut len = tcp_stream.read(&mut read).await?;
     let _ = str::from_utf8(&read[..len])?;
@@ -60,10 +62,32 @@ async fn wrong_stamp() -> Result<()> {
 #[tokio::test]
 async fn wrong_request() -> Result<()> {
     let mut tcp_stream = tokio::net::TcpStream::connect("0.0.0.0:5555").await?;
-    let mut read = [0; 4096];
+    let mut read = [0; READ_BUF_LEN];
     let req = "WRONG REQUEST";
     tcp_stream.write(&req.as_bytes()).await?;
     let len = tcp_stream.read(&mut read).await?;
     assert_eq!(len, 0);
+    Ok(())
+}
+
+#[tokio::test]
+async fn wrong_resource() -> Result<()> {
+    let mut tcp_stream = tokio::net::TcpStream::connect("0.0.0.0:5555").await?;
+    let mut read = [0; READ_BUF_LEN];
+    tcp_stream.write(&REQUEST_LINE.as_bytes()).await?;
+    let mut len = tcp_stream.read(&mut read).await?;
+    let _ = str::from_utf8(&read[..len])?;
+    let s = Stamp::mint(
+        Some(&"BAD_RESOURCE"),
+        None,
+        None,
+        None,
+        None,
+        false,
+    )?;
+    tcp_stream.write(&s.to_string().as_bytes()).await?;
+    len = tcp_stream.read(&mut read).await?;
+    let quote = str::from_utf8(&read[..len])?;
+    assert_eq!(HASHSET.get(quote), None);
     Ok(())
 }

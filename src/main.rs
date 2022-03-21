@@ -16,6 +16,8 @@ const QUOTES: &'static [&'static str] = &[
 
 const REQUEST_LINE: &str = "REQUEST";
 
+const READ_BUF_LEN: usize = 4096;
+
 fn get_random_quote() -> &'static str {
     return QUOTES[thread_rng().gen_range(0..(QUOTES.len() - 1))];
 }
@@ -27,7 +29,7 @@ async fn main() -> Result<()> {
             Ok(tcp_stream)
         })
         .set_input_event(async move |mut reader, peer, _token| {
-            let mut buff = [0; 4096];
+            let mut buff = [0; READ_BUF_LEN];
             let mut on_verification = false;
             let mut rand_string = String::new();
             while let Ok(len) = reader.read(&mut buff).await {
