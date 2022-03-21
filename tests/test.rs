@@ -17,14 +17,14 @@ lazy_static! {
         m.insert("Quote Three");
         m
     };
+    static ref REQUEST_LINE: &'static str = "REQUEST";
 }
 
 #[tokio::test]
 async fn smoke() -> Result<()> {
     let mut tcp_stream = tokio::net::TcpStream::connect("0.0.0.0:5555").await?;
     let mut read = [0; 4096];
-    let req = "REQUEST";
-    tcp_stream.write(&req.as_bytes()).await?;
+    tcp_stream.write(&REQUEST_LINE.as_bytes()).await?;
     let mut len = tcp_stream.read(&mut read).await?;
     let resource = str::from_utf8(&read[..len])?;
     let s = Stamp::mint(
@@ -46,15 +46,24 @@ async fn smoke() -> Result<()> {
 async fn wrong_stamp() -> Result<()> {
     let mut tcp_stream = tokio::net::TcpStream::connect("0.0.0.0:5555").await?;
     let mut read = [0; 4096];
-    let req = "REQUEST";
-    tcp_stream.write(&req.as_bytes()).await?;
+    tcp_stream.write(&REQUEST_LINE.as_bytes()).await?;
     let mut len = tcp_stream.read(&mut read).await?;
     let _ = str::from_utf8(&read[..len])?;
     let s = Stamp::default();
     tcp_stream.write(&s.to_string().as_bytes()).await?;
-    println!("HERE {}", line!());
     len = tcp_stream.read(&mut read).await?;
     let quote = str::from_utf8(&read[..len])?;
     assert_eq!(HASHSET.get(quote), None);
+    Ok(())
+}
+
+#[tokio::test]
+async fn wrong_request() -> Result<()> {
+    let mut tcp_stream = tokio::net::TcpStream::connect("0.0.0.0:5555").await?;
+    let mut read = [0; 4096];
+    let req = "WRONG REQUEST";
+    tcp_stream.write(&req.as_bytes()).await?;
+    let len = tcp_stream.read(&mut read).await?;
+    assert_eq!(len, 0);
     Ok(())
 }
